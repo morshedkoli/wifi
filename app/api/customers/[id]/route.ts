@@ -16,12 +16,12 @@ export async function PATCH(
     
     // Only update days if it's provided in the request
     if (body.days !== undefined) {
-      updateObj.days = body.days;
+      (updateObj as any).days = body.days;
     }
     
     // Only update paymentStatus if it's provided in the request
     if (body.paymentStatus !== undefined) {
-      updateObj.paymentStatus = body.paymentStatus;
+      (updateObj as any).paymentStatus = body.paymentStatus;
     }
     
     const customer = await Customer.findByIdAndUpdate(

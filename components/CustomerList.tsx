@@ -222,7 +222,7 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
           </TableHeader>
           <TableBody>
             {customers.map((customer) => (
-              <TableRow key={customer._id}>
+              <TableRow key={customer._id} className={`${customer.paymentStatus === 'PENDING' ? 'bg-red-300' : ''} ${customer.days !== 30 ? 'bg-yellow-50' : ''}`}>
                 <TableCell>{customer.name}</TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell>{customer.package}</TableCell>
@@ -230,7 +230,7 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
                 <TableCell>{customer.month}</TableCell>
                 <TableCell>{customer.days}</TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${customer.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : customer.paymentStatus === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${customer.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : customer.paymentStatus === 'PENDING' ? 'bg-red-800 text-yellow-50' : 'bg-gray-100 text-gray-800'}`}>
                     {customer.paymentStatus}
                   </span>
                 </TableCell>

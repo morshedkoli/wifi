@@ -24,17 +24,21 @@ async function dbConnect() {
     return cached.conn;
   }
 
-  if (!cached?.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-      return mongoose;
-    });
+  if (!cached) {
+    cached = global.mongoose = { conn: null, promise: null };
   }
 
+  const opts = {
+    bufferCommands: false,
+  };
+
   try {
+    if (!cached.promise) {
+      cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+        return mongoose;
+      });
+    }
+
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;

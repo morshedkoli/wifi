@@ -41,9 +41,22 @@ type Customer = {
   updatedAt: string;
 };
 
+type CustomerHistory = {
+  _id: string;
+  customerId: string;
+  changes: {
+    field: string;
+    oldValue: any;
+    newValue: any;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 const editFormSchema = z.object({
-  days: z.number().min(1, 'Days must be at least 1'),
+  days: z.number().min(1, 'Days must be at least 1').optional(),
   paymentStatus: z.enum(['PENDING', 'PAID']),
+  package: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
 });
 
 export default function CustomerList({ status }: { status: 'active' | 'completed' }) {
@@ -52,7 +65,9 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
   const [months, setMonths] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerHistory, setCustomerHistory] = useState<CustomerHistory[]>([]);
   
   const editForm = useForm<z.infer<typeof editFormSchema>>({
     resolver: zodResolver(editFormSchema),
@@ -136,20 +151,42 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
   const openEditDialog = (customer: Customer) => {
     setSelectedCustomer(customer);
     editForm.reset({
-      days: customer.days,
+      days: undefined,
       paymentStatus: customer.paymentStatus as 'PENDING' | 'PAID',
+      package: customer.package as 'BASIC' | 'STANDARD' | 'PREMIUM',
     });
     setIsEditDialogOpen(true);
+  };
+  
+  const packagePrices = {
+    BASIC: 500,
+    STANDARD: 700,
+    PREMIUM: 1000,
   };
   
   const handleEditSubmit = async (values: z.infer<typeof editFormSchema>) => {
     if (!selectedCustomer) return;
     
     try {
+      const updateData: {
+        paymentStatus: 'PENDING' | 'PAID';
+        package: 'BASIC' | 'STANDARD' | 'PREMIUM';
+        days?: number;
+        price?: number;
+      } = {
+        paymentStatus: values.paymentStatus,
+        package: values.package,
+        price: packagePrices[values.package] // Always update price when package changes
+      };
+      
+      if (values.days) {
+        updateData.days = selectedCustomer.days + values.days;
+      }
+      
       const response = await fetch(`/api/customers/${selectedCustomer._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify(updateData),
       });
       
       if (response.ok) {
@@ -172,10 +209,28 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
     }
   };
 
+  const openHistoryDialog = async (customer: Customer) => {
+    setSelectedCustomer(customer);
+    try {
+      const response = await fetch(`/api/customers/${customer._id}/history`);
+      if (!response.ok) throw new Error('Failed to fetch history');
+      const data = await response.json();
+      setCustomerHistory(data);
+      setIsHistoryDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching customer history:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch customer history. Please try again.",
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex justify-between items-center">
+        <CardTitle className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <span>{status === 'active' ? 'Active Customers' : 'Completed Payments'}</span>
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-[180px]">
@@ -205,45 +260,62 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
           </Select>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Package</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Month</TableHead>
-              <TableHead>Days</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+      <CardContent className="p-0 sm:p-6">
+        <div className="overflow-x-auto">
+        </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="whitespace-nowrap">Name</TableHead>
+                <TableHead className="whitespace-nowrap hidden sm:table-cell">Phone</TableHead>
+                <TableHead className="whitespace-nowrap hidden sm:table-cell">Package</TableHead>
+                <TableHead className="whitespace-nowrap">Price</TableHead>
+                <TableHead className="whitespace-nowrap hidden sm:table-cell">Month</TableHead>
+                <TableHead className="whitespace-nowrap">Days</TableHead>
+                <TableHead className="whitespace-nowrap">Status</TableHead>
+                <TableHead className="whitespace-nowrap hidden sm:table-cell">Created</TableHead>
+                <TableHead className="whitespace-nowrap">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {customers.map((customer) => (
-              <TableRow key={customer._id} className={`${customer.paymentStatus === 'PENDING' ? 'bg-red-300' : ''} ${customer.days !== 30 ? 'bg-yellow-50' : ''}`}>
+              <TableRow 
+                key={customer._id} 
+                className={`
+                  ${customer.paymentStatus === 'PENDING' ? 'bg-red-300' : ''} 
+                  ${customer.days !== 30 ? 'bg-yellow-50' : ''}
+                  ${customer.paymentStatus === 'PAID' && customer.days < 30 ? 'bg-blue-200' : ''}
+                `}
+              >
                 <TableCell>{customer.name}</TableCell>
-                <TableCell>{customer.phone}</TableCell>
-                <TableCell>{customer.package}</TableCell>
+                <TableCell className="hidden sm:table-cell">{customer.phone}</TableCell>
+                <TableCell className="hidden sm:table-cell">{customer.package}</TableCell>
                 <TableCell>{customer.price} TK</TableCell>
-                <TableCell>{customer.month}</TableCell>
+                <TableCell className="hidden sm:table-cell">{customer.month}</TableCell>
                 <TableCell>{customer.days}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${customer.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : customer.paymentStatus === 'PENDING' ? 'bg-red-800 text-yellow-50' : 'bg-gray-100 text-gray-800'}`}>
                     {customer.paymentStatus}
                   </span>
                 </TableCell>
-                <TableCell>{format(new Date(customer.createdAt), 'dd MMM yyyy')}</TableCell>
+                <TableCell className="hidden sm:table-cell">{format(new Date(customer.createdAt), 'dd MMM yyyy')}</TableCell>
                 <TableCell>
-                  {status === 'active' && (
+                  <div className="flex gap-2">
+                    {status === 'active' && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openEditDialog(customer)}
+                      >
+                        Edit
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
-                      onClick={() => openEditDialog(customer)}
+                      onClick={() => openHistoryDialog(customer)}
                     >
-                      Edit
+                      History
                     </Button>
-                  )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -297,11 +369,61 @@ export default function CustomerList({ status }: { status: 'active' | 'completed
                 )}
               />
               
+              <FormField
+                control={editForm.control}
+                name="package"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Package</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a package" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="BASIC">Basic (500 TK)</SelectItem>
+                        <SelectItem value="STANDARD">Standard (700 TK)</SelectItem>
+                        <SelectItem value="PREMIUM">Premium (1000 TK)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              
               <DialogFooter>
                 <Button type="submit">Save Changes</Button>
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customer History</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {customerHistory.map((history) => (
+              <div key={history._id} className="border-b pb-4">
+                <div className="text-sm text-gray-500">
+                  {format(new Date(history.createdAt), 'dd MMM yyyy HH:mm')}
+                </div>
+                {history.changes.map((change, index) => (
+                  <div key={index} className="mt-2">
+                    <div className="font-medium">{change.field}</div>
+                    <div className="text-sm text-red-500">- {change.oldValue}</div>
+                    <div className="text-sm text-green-500">+ {change.newValue}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {customerHistory.length === 0 && (
+              <div className="text-center text-gray-500">No history found</div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

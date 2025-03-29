@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Customer from '@/models/Customer';
+import { format, addMonths, subMonths } from 'date-fns';
 
 export async function GET() {
   try {
@@ -18,10 +19,10 @@ export async function GET() {
       { $project: { month: "$_id", _id: 0 } }
     ]);
     
-    // Extract just the month values
-    const monthList = months.map(item => item.month);
+    // Extract just the month values and sort them
+    const uniqueMonths = months.map(item => item.month).sort();
     
-    return NextResponse.json(monthList);
+    return NextResponse.json(uniqueMonths);
   } catch (error) {
     console.error('Error fetching months:', error);
     return NextResponse.json({ error: 'Error fetching available months' }, { status: 500 });
